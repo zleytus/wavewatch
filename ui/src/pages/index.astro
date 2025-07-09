@@ -10,7 +10,7 @@ import Layout from '../layouts/Layout.astro';
 <Layout>
 	<script type="module">
 	const connection = new signalR.HubConnectionBuilder()
-		.withUrl('http://localhost:5216/analyzerhub')
+		.withUrl('https://api.wavewatch.io/analyzerhub')
 		.build();
 
 	connection.on('ReceiveTraceData', (id, trace) => {
