@@ -28,7 +28,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
-app.UseHttpsRedirection();
 
 app.MapPost("/analyzers/{analyzerId}/traces", async (string analyzerId, TraceData data, IHubContext<AnalyzerHub, IAnalyzerClient> hubContext) =>
 {
