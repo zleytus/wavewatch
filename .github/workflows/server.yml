@@ -21,7 +21,7 @@ jobs:
 
       - name: Build and push Docker image to GHCR
         run: |
-          docker build -t $IMAGE_NAME .
+          docker build -t $IMAGE_NAME ./server
           docker push $IMAGE_NAME
 
       
