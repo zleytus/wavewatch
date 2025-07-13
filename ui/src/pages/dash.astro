@@ -1,0 +1,49 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SpectrumCharts from '../components/SpectrumCharts.astro';
+import SignalRConnection from '../components/SignalRConnection.astro';
+---
+
+<Layout>
+	<!-- Spectrum Charts -->
+	<div id="chartsView" data-component="charts">
+		<SpectrumCharts />
+	</div>
+
+	<!-- SignalR Connection Manager -->
+	<SignalRConnection />
+
+	<script>
+		// Auto-connect to the analyzer with the serial from the URL query parameter
+		document.addEventListener('DOMContentLoaded', function() {
+			// Get serial number from query parameters
+			const urlParams = new URLSearchParams(window.location.search);
+			const serial = urlParams.get('serial');
+			
+			if (!serial) {
+				// No serial number provided, redirect to home
+				window.location.href = '/';
+				return;
+			}
+
+			// Update loading display with serial number
+			const loadingSerial = document.getElementById('loadingSerial');
+			if (loadingSerial) {
+				loadingSerial.textContent = serial;
+			}
+
+			// Wait a moment for components to initialize
+			setTimeout(() => {
+				// Dispatch connection event with serial from URL
+				window.dispatchEvent(new CustomEvent('connectToAnalyzer', {
+					detail: { serialNumber: serial }
+				}));
+			}, 500);
+
+			// Listen for disconnection to go back to landing page
+			window.addEventListener('disconnectFromAnalyzer', function() {
+				window.location.href = '/';
+			});
+		});
+	</script>
+</Layout>

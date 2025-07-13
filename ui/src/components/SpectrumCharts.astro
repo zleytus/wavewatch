@@ -1,0 +1,497 @@
+---
+// Spectrum Charts Component
+import Plotly from 'plotly.js-dist-min';
+import WaveIcon from '../assets/wave-icon.svg?raw';
+---
+
+<div class="min-h-screen bg-black">
+    <!-- Dashboard Header -->
+    <header class="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <!-- Left: Branding and Device Info -->
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-10 text-blue-400 flex items-center justify-center" set:html={WaveIcon}></div>
+                        <h1 class="text-xl font-bold text-white">WaveWatch</h1>
+                    </div>
+                    <div class="hidden md:block h-8 w-px bg-zinc-700"></div>
+                    <div class="hidden md:flex items-center space-x-3">
+                        <div class="text-sm text-gray-400">Device:</div>
+                        <div class="flex items-center space-x-2">
+                            <span id="connectedSerial" class="font-mono text-green-400 font-semibold"></span>
+                            <div id="connectionIndicator" class="flex items-center space-x-2 px-3 py-1 bg-zinc-800 rounded-full">
+                                <div class="w-2 h-2 bg-gray-600 rounded-full"></div>
+                                <span class="text-xs text-gray-300">Disconnected</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Actions -->
+                <div class="flex items-center space-x-3">
+                    <a 
+                        href="/"
+                        class="px-3 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 text-gray-200 rounded-md transition-colors duration-200"
+                    >
+                        ← Home
+                    </a>
+                    <button 
+                        id="playStopBtn"
+                        class="p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors duration-200 flex items-center justify-center"
+                        title="Stop data stream"
+                    >
+                        <!-- Stop icon (default when receiving data) -->
+                        <svg id="stopIcon" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M6 6h12v12H6z"/>
+                        </svg>
+                        <!-- Play icon (hidden by default) -->
+                        <svg id="playIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Dashboard Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Loading State -->
+        <div id="loadingState" class="bg-zinc-900 rounded-lg shadow-lg p-6 border border-zinc-800">
+            <div class="flex flex-col items-center justify-center h-96">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-green-400 mb-4"></div>
+                <h2 class="text-xl font-semibold text-white mb-2">Connecting to RF Explorer</h2>
+                <p class="text-gray-300 text-center">
+                    <span id="loadingSerial" class="font-mono text-green-400"></span>
+                </p>
+                <div id="loadingStatus" class="text-gray-400 mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Stats (initially hidden) -->
+        <div id="statsContainer" class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" style="display: none;">
+            <div class="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-red-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Peak Signal</p>
+                        <p id="peakSignal" class="text-2xl font-semibold text-white">-- dBm</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-green-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Avg Signal</p>
+                        <p id="avgSignal" class="text-2xl font-semibold text-white">-- dBm</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-purple-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M9 12l2 2 4-4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Frequency Range</p>
+                        <p id="freqRange" class="text-lg font-semibold text-white">-- MHz</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-orange-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-400">Traces Captured</p>
+                        <p id="traceCount" class="text-2xl font-semibold text-white">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Combined Charts (initially hidden) -->
+        <div id="chartsContainer" class="bg-zinc-900 rounded-lg shadow-lg border border-zinc-800" style="display: none;">
+            <div class="p-2">
+                <div id="combinedChart" style="width: 100%; height: 800px;"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    import Plotly from 'plotly.js-dist-min';
+    
+    declare global {
+        interface Window {
+            Plotly: any;
+        }
+    }
+
+    // Make Plotly available globally
+    (window as any).Plotly = Plotly;
+
+    let spectrogramData: number[][] = [];
+    let spectrogramFrequencies: number[] = [];
+    let maxSpectrogramRows = 100;
+    let currentTimeIndex = 0;
+    let hasReceivedData = false;
+    let traceCount = 0;
+    let isDataStreamPaused = false;
+
+    let chartsInitialized = false;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        setupEventListeners();
+    });
+
+    function initializeCharts() {
+        console.log('Initializing combined chart...');
+        
+        const combinedElement = document.getElementById('combinedChart');
+        if (!combinedElement) {
+            console.error('Combined chart element not found');
+            return;
+        }
+        
+        // Create subplot data
+        const combinedData = [
+            // Spectrum trace (top subplot)
+            {
+                x: [],
+                y: [],
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Live Spectrum',
+                line: { color: '#10b981', width: 2 },
+                xaxis: 'x',
+                yaxis: 'y'
+            },
+            // Spectrogram heatmap (bottom subplot)
+            {
+                z: [],
+                x: [],
+                y: [],
+                type: 'heatmap',
+                colorscale: [
+                    [0, '#1d4ed8'], [0.2, '#3b82f6'], [0.4, '#06b6d4'], [0.6, '#10b981'], 
+                    [0.7, '#eab308'], [0.8, '#f97316'], [0.9, '#ef4444'], [1, '#dc2626']
+                ],
+                zmin: -120,
+                zmax: -40,
+                showscale: false,
+                xaxis: 'x2',
+                yaxis: 'y2'
+            }
+        ];
+        
+        const combinedLayout = {
+            // Top subplot (spectrum) 
+            xaxis: {
+                domain: [0, 1],
+                anchor: 'y',
+                title: '',
+                showticklabels: false,
+                showgrid: true,
+                gridcolor: '#4B5563',
+                tickfont: {
+                    family: 'system-ui, -apple-system, sans-serif',
+                    size: 12,
+                    color: '#9CA3AF'
+                }
+            },
+            yaxis: {
+                domain: [0.5, 1],
+                anchor: 'x',
+                title: {
+                    text: 'Amplitude (dBm)',
+                    font: { 
+                        family: 'system-ui, -apple-system, sans-serif',
+                        size: 14,
+                        color: '#D1D5DB'
+                    }
+                },
+                showgrid: true,
+                gridcolor: '#4B5563',
+                tickfont: {
+                    family: 'system-ui, -apple-system, sans-serif',
+                    size: 12,
+                    color: '#9CA3AF'
+                },
+                range: [-120, -20],
+                fixedrange: true
+            },
+            // Bottom subplot (spectrogram)
+            xaxis2: {
+                domain: [0, 1],
+                anchor: 'y2',
+                title: {
+                    text: 'Frequency (MHz)',
+                    font: { 
+                        family: 'system-ui, -apple-system, sans-serif',
+                        size: 14,
+                        color: '#D1D5DB'
+                    }
+                },
+                tickformat: '.0f',
+                showgrid: false,
+                tickfont: {
+                    family: 'system-ui, -apple-system, sans-serif',
+                    size: 12,
+                    color: '#9CA3AF'
+                }
+            },
+            yaxis2: {
+                domain: [0, 0.5],
+                anchor: 'x2',
+                title: {
+                    text: 'Time (trace #)',
+                    font: { 
+                        family: 'system-ui, -apple-system, sans-serif',
+                        size: 14,
+                        color: '#D1D5DB'
+                    }
+                },
+                showgrid: false,
+                showticklabels: false,
+                ticks: '',
+                autorange: 'reversed'
+            },
+            margin: { t: 20, r: 50, b: 80, l: 80 },
+            height: 800,
+            showlegend: false,
+            plot_bgcolor: '#000000',
+            paper_bgcolor: '#18181b'
+        };
+        
+        const combinedConfig = {
+            responsive: true,
+            displayModeBar: false,
+            useResizeHandler: true
+        };
+        
+        window.Plotly.newPlot('combinedChart', combinedData, combinedLayout, combinedConfig);
+        
+        // Multiple resize attempts to ensure proper width
+        const resizeChart = () => {
+            if (combinedElement.offsetWidth > 0) {
+                console.log('Combined chart container width:', combinedElement.offsetWidth);
+                window.Plotly.Plots.resize('combinedChart');
+            }
+        };
+        
+        setTimeout(resizeChart, 100);
+        setTimeout(resizeChart, 300);
+        setTimeout(resizeChart, 500);
+        
+        // Also resize when window is resized
+        window.addEventListener('resize', resizeChart);
+    }
+
+    function setupEventListeners() {
+        const playStopBtn = document.getElementById('playStopBtn');
+        playStopBtn?.addEventListener('click', function() {
+            toggleDataStream();
+        });
+    }
+
+    function toggleDataStream() {
+        isDataStreamPaused = !isDataStreamPaused;
+        const playStopBtn = document.getElementById('playStopBtn');
+        const stopIcon = document.getElementById('stopIcon');
+        const playIcon = document.getElementById('playIcon');
+        
+        if (isDataStreamPaused) {
+            // Show play button (green)
+            playStopBtn!.className = 'p-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors duration-200 flex items-center justify-center';
+            playStopBtn!.title = 'Resume data stream';
+            stopIcon!.classList.add('hidden');
+            playIcon!.classList.remove('hidden');
+        } else {
+            // Show stop button (red)
+            playStopBtn!.className = 'p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors duration-200 flex items-center justify-center';
+            playStopBtn!.title = 'Stop data stream';
+            stopIcon!.classList.remove('hidden');
+            playIcon!.classList.add('hidden');
+        }
+    }
+
+    function showChartsAndHideLoading() {
+        const loadingState = document.getElementById('loadingState');
+        const chartsContainer = document.getElementById('chartsContainer');
+        const statsContainer = document.getElementById('statsContainer');
+        
+        if (loadingState && chartsContainer && statsContainer) {
+            loadingState.style.display = 'none';
+            chartsContainer.style.display = 'block';
+            statsContainer.style.display = 'grid';
+            
+            // Force chart resize after becoming visible
+            setTimeout(() => {
+                window.Plotly.Plots.resize('combinedChart');
+            }, 50);
+        }
+    }
+
+    function updateDashboardStats(peakSignal: number, avgSignal: number, freqRange: string, traceCount: number) {
+        const peakElement = document.getElementById('peakSignal');
+        const avgElement = document.getElementById('avgSignal');
+        const freqElement = document.getElementById('freqRange');
+        const traceElement = document.getElementById('traceCount');
+        
+        if (peakElement) {
+            peakElement.textContent = `${peakSignal.toFixed(1)} dBm`;
+        }
+        if (avgElement) {
+            avgElement.textContent = `${avgSignal.toFixed(1)} dBm`;
+        }
+        if (freqElement) {
+            freqElement.textContent = `${freqRange} MHz`;
+        }
+        if (traceElement) {
+            traceElement.textContent = traceCount.toString();
+        }
+    }
+
+    function updateConnectionStatus(isConnected: boolean, serialNumber: string = '') {
+        const indicator = document.getElementById('connectionIndicator');
+        const serialSpan = document.getElementById('connectedSerial');
+        const loadingSerial = document.getElementById('loadingSerial');
+        const loadingStatus = document.getElementById('loadingStatus');
+        
+        if (isConnected) {
+            indicator!.innerHTML = `
+                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span class="text-xs text-gray-300">Live</span>
+            `;
+            serialSpan!.textContent = serialNumber;
+            
+            // Update loading state
+            if (loadingSerial) loadingSerial.textContent = serialNumber;
+            if (loadingStatus) loadingStatus.textContent = 'Connected! Waiting for data...';
+            
+            // Initialize charts when connection is established and view is visible
+            if (!chartsInitialized) {
+                setTimeout(() => {
+                    initializeCharts();
+                    chartsInitialized = true;
+                }, 100);
+            }
+        } else {
+            indicator!.innerHTML = `
+                <div class="w-3 h-3 bg-gray-600 rounded-full"></div>
+                <span class="text-sm text-gray-300">Disconnected</span>
+            `;
+            serialSpan!.textContent = '';
+            
+            // Update loading state
+            if (loadingStatus) loadingStatus.textContent = 'Connection failed. Retrying...';
+        }
+    }
+
+    function updateSpectrumChart(frequencies: number[], amplitudes: number[]) {
+        // Show charts on first data received
+        if (!hasReceivedData) {
+            hasReceivedData = true;
+            showChartsAndHideLoading();
+        }
+        
+        // Ignore data if streaming is paused
+        if (isDataStreamPaused) {
+            return;
+        }
+        
+        // Increment trace count
+        traceCount++;
+        
+        // Calculate stats for dashboard
+        const peakSignal = Math.max(...amplitudes);
+        const avgSignal = amplitudes.reduce((sum, val) => sum + val, 0) / amplitudes.length;
+        const freqMHz = frequencies.map(f => f / 1000000);
+        const freqRange = `${freqMHz[0].toFixed(1)} - ${freqMHz[freqMHz.length - 1].toFixed(1)}`;
+        
+        // Update dashboard stats
+        updateDashboardStats(peakSignal, avgSignal, freqRange, traceCount);
+        
+        // Convert frequencies from Hz to MHz for display
+        const update = {
+            x: [freqMHz],
+            y: [amplitudes]
+        };
+        
+        window.Plotly.restyle('combinedChart', update, 0);
+    }
+
+    function updateWaterfallChart(frequencies: number[], amplitudes: number[]) {
+        // Initialize spectrogram data structure on first call
+        if (spectrogramData.length === 0) {
+            spectrogramFrequencies = [...frequencies];
+            // Initialize 2D array: spectrogramData[timeRow][freqIndex] = amplitude
+            // Use null values which won't be rendered, giving white background
+            for (let i = 0; i < maxSpectrogramRows; i++) {
+                spectrogramData.push(new Array(frequencies.length).fill(null));
+            }
+        }
+        
+        // Ignore data if streaming is paused
+        if (isDataStreamPaused) {
+            return;
+        }
+        
+        // Shift all rows down by one (move old data down)
+        for (let i = maxSpectrogramRows - 1; i > 0; i--) {
+            spectrogramData[i] = [...spectrogramData[i - 1]];
+        }
+        
+        // Add new trace at the top (row 0)
+        spectrogramData[0] = [...amplitudes];
+        
+        // Convert frequencies from Hz to MHz for display
+        const freqMHz = frequencies.map(f => f / 1000000);
+        
+        // Create y-axis labels (time indices, newest at top = 0, oldest at bottom = 99)
+        const timeIndices = Array.from({length: maxSpectrogramRows}, (_, i) => i);
+        
+        const update = {
+            x: [freqMHz],
+            y: [timeIndices],
+            z: [spectrogramData]
+        };
+        
+        window.Plotly.restyle('combinedChart', update, 1);
+        
+        currentTimeIndex += 1;
+    }
+
+    // Expose functions globally for SignalR connection
+    (window as any).updateConnectionStatus = updateConnectionStatus;
+    (window as any).updateSpectrumChart = updateSpectrumChart;
+    (window as any).updateWaterfallChart = updateWaterfallChart;
+</script>
