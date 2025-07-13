@@ -1,0 +1,217 @@
+---
+// SignalR Connection Manager
+---
+
+<script>
+    declare global {
+        interface Window {
+            signalR: any;
+            updateConnectionStatus: (isConnected: boolean, serialNumber?: string) => void;
+            updateSpectrumChart: (frequencies: number[], amplitudes: number[]) => void;
+            updateWaterfallChart: (frequencies: number[], amplitudes: number[]) => void;
+        }
+    }
+
+    class SignalRManager {
+        private connection: any = null;
+        private currentAnalyzerId: string = '';
+        private isConnecting: boolean = false;
+
+        constructor() {
+            this.setupEventListeners();
+        }
+
+        private getServerUrl(): string {
+            // Check if we're running in development mode
+            const isDevelopment = window.location.hostname === 'localhost' || 
+                                 window.location.hostname === '127.0.0.1' ||
+                                 window.location.hostname.includes('localhost');
+            
+            if (isDevelopment) {
+                // Use local development server
+                return 'http://localhost:5216/analyzerhub';
+            } else {
+                // Use production server
+                return 'https://api.wavewatch.io/analyzerhub';
+            }
+        }
+
+        private setupEventListeners() {
+            // Listen for connection requests
+            window.addEventListener('connectToAnalyzer', (e: any) => {
+                const { serialNumber } = e.detail;
+                this.connectToAnalyzer(serialNumber);
+            });
+
+            // Listen for disconnection requests
+            window.addEventListener('disconnectFromAnalyzer', () => {
+                this.disconnect();
+            });
+        }
+
+        private async connectToAnalyzer(analyzerId: string) {
+            if (this.isConnecting) return;
+            
+            this.isConnecting = true;
+            this.currentAnalyzerId = analyzerId;
+
+            try {
+                // Determine server URL based on environment
+                const serverUrl = this.getServerUrl();
+                console.log(`Connecting to SignalR hub at: ${serverUrl}`);
+
+                // Create SignalR connection
+                this.connection = new window.signalR.HubConnectionBuilder()
+                    .withUrl(serverUrl)
+                    .withAutomaticReconnect()
+                    .build();
+
+                // Set up event handlers
+                this.connection.on('ReceiveTraceData', (receivedAnalyzerId: string, traceData: any) => {
+                    if (receivedAnalyzerId === this.currentAnalyzerId) {
+                        this.handleTraceData(traceData);
+                    }
+                });
+
+                this.connection.onreconnecting(() => {
+                    console.log('SignalR reconnecting...');
+                    this.updateConnectionStatus('connecting', 'Reconnecting...');
+                });
+
+                this.connection.onreconnected(() => {
+                    console.log('SignalR reconnected');
+                    this.joinAnalyzerGroup();
+                });
+
+                this.connection.onclose((error: any) => {
+                    console.log('SignalR connection closed:', error);
+                    window.updateConnectionStatus(false);
+                    this.updateConnectionStatus('error', 'Connection lost');
+                });
+
+                // Start connection
+                await this.connection.start();
+                console.log('SignalR connected successfully');
+
+                // Join analyzer group
+                await this.joinAnalyzerGroup();
+
+                // Update UI
+                window.updateConnectionStatus(true, this.currentAnalyzerId);
+                this.updateConnectionStatus('success', `Connected to ${this.currentAnalyzerId}`);
+
+            } catch (error) {
+                console.error('SignalR connection failed:', error);
+                this.updateConnectionStatus('error', 'Failed to connect to server');
+                this.connection = null;
+            } finally {
+                this.isConnecting = false;
+            }
+        }
+
+        private async joinAnalyzerGroup() {
+            if (this.connection && this.currentAnalyzerId) {
+                try {
+                    await this.connection.invoke('ConnectToAnalyzer', this.currentAnalyzerId);
+                    console.log(`Joined analyzer group: ${this.currentAnalyzerId}`);
+                } catch (error) {
+                    console.error('Failed to join analyzer group:', error);
+                }
+            }
+        }
+
+        private async disconnect() {
+            if (this.connection) {
+                try {
+                    if (this.currentAnalyzerId) {
+                        await this.connection.invoke('DisconnectFromAnalyzer', this.currentAnalyzerId);
+                    }
+                    await this.connection.stop();
+                } catch (error) {
+                    console.error('Error during disconnect:', error);
+                } finally {
+                    this.connection = null;
+                    this.currentAnalyzerId = '';
+                    window.updateConnectionStatus(false);
+                    this.updateConnectionStatus('success', 'Disconnected');
+                    
+                    // Show serial input again
+                    this.showSerialInput();
+                }
+            }
+        }
+
+        private handleTraceData(traceData: any) {
+            try {
+                console.log('Raw trace data:', traceData);
+                
+                // Handle different possible data structures
+                let frequencies: number[] = [];
+                let amplitudes: number[] = [];
+                
+                if (traceData.frequenciesHz && traceData.amplitudesDbm) {
+                    frequencies = traceData.frequenciesHz;
+                    amplitudes = traceData.amplitudesDbm;
+                } else if (traceData.FrequenciesHz && traceData.AmplitudesDbm) {
+                    frequencies = traceData.FrequenciesHz;
+                    amplitudes = traceData.AmplitudesDbm;
+                } else if (traceData.frequencies_hz && traceData.amplitudes_dbm) {
+                    frequencies = traceData.frequencies_hz;
+                    amplitudes = traceData.amplitudes_dbm;
+                } else {
+                    console.error('Unexpected trace data structure:', traceData);
+                    return;
+                }
+
+                // Validate data
+                if (!Array.isArray(frequencies) || !Array.isArray(amplitudes)) {
+                    console.error('Frequencies or amplitudes is not an array:', { frequencies, amplitudes });
+                    return;
+                }
+
+                if (frequencies.length === 0 || amplitudes.length === 0) {
+                    console.warn('Empty frequency or amplitude data');
+                    return;
+                }
+
+                if (frequencies.length !== amplitudes.length) {
+                    console.warn('Frequency and amplitude arrays have different lengths:', {
+                        freqLength: frequencies.length,
+                        ampLength: amplitudes.length
+                    });
+                }
+
+                // Update charts
+                window.updateSpectrumChart(frequencies, amplitudes);
+                window.updateWaterfallChart(frequencies, amplitudes);
+
+                console.log(`Received trace: ${frequencies.length} points`);
+            } catch (error) {
+                console.error('Error processing trace data:', error);
+                console.error('Trace data that caused error:', traceData);
+            }
+        }
+
+        private updateConnectionStatus(status: 'success' | 'error' | 'connecting', message: string) {
+            window.dispatchEvent(new CustomEvent('connectionStatusUpdate', {
+                detail: { status, message }
+            }));
+        }
+
+        private showSerialInput() {
+            // Hide charts and show serial input
+            const serialInput = document.querySelector('[data-component="serial-input"]') as HTMLElement;
+            const charts = document.querySelector('[data-component="charts"]') as HTMLElement;
+            
+            if (serialInput && charts) {
+                serialInput.style.display = 'block';
+                charts.style.display = 'none';
+            }
+        }
+    }
+
+    // Initialize SignalR manager when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        new SignalRManager();
+    });
+</script>

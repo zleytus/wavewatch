@@ -1,0 +1,100 @@
+---
+// Serial Number Input Component
+---
+
+<div class="min-h-screen bg-black flex items-center justify-center p-4">
+    <div class="bg-zinc-900 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-zinc-800">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Wavewatch</h1>
+            <h2 class="text-xl font-semibold text-gray-100 mb-4">Connect to RF Explorer</h2>
+            <p class="text-gray-200">Enter the serial number of the RF Explorer you want to monitor:</p>
+        </div>
+        
+        <div class="space-y-4">
+            <div>
+                <label for="serialNumber" class="block text-sm font-medium text-gray-100 mb-2">
+                    Serial Number
+                </label>
+                <input 
+                    type="text" 
+                    id="serialNumber" 
+                    placeholder="e.g., RFE12345678"
+                    pattern="[A-Za-z0-9-]+"
+                    required
+                    class="w-full px-4 py-3 border border-zinc-700 bg-black text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 text-lg placeholder-gray-500"
+                />
+            </div>
+            
+            <button 
+                type="button" 
+                id="connectBtn"
+                class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+                Connect to RF Explorer
+            </button>
+            
+            <div id="connectionStatus" class="text-center min-h-[1.5rem] font-medium"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Serial number input and connection logic will be handled here
+    document.addEventListener('DOMContentLoaded', function() {
+        const serialInput = document.getElementById('serialNumber') as HTMLInputElement;
+        const connectBtn = document.getElementById('connectBtn') as HTMLButtonElement;
+        const statusDiv = document.getElementById('connectionStatus') as HTMLDivElement;
+        
+        connectBtn.addEventListener('click', function() {
+            const serialNumber = serialInput.value.trim();
+            
+            if (!serialNumber) {
+                showStatus('Please enter a serial number', 'error');
+                return;
+            }
+            
+            if (!/^[A-Za-z0-9-]+$/.test(serialNumber)) {
+                showStatus('Invalid serial number format', 'error');
+                return;
+            }
+            
+            connectToAnalyzer(serialNumber);
+        });
+        
+        // Allow Enter key to trigger connection
+        serialInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectBtn.click();
+            }
+        });
+        
+        function showStatus(message: string, type: 'success' | 'error' | 'connecting') {
+            statusDiv.textContent = message;
+            statusDiv.className = `text-center min-h-[1.5rem] font-medium ${
+                type === 'success' ? 'text-green-400' :
+                type === 'error' ? 'text-red-400' :
+                'text-yellow-400'
+            }`;
+        }
+        
+        function connectToAnalyzer(serialNumber: string) {
+            connectBtn.disabled = true;
+            showStatus('Connecting to RF Explorer...', 'connecting');
+            
+            // Dispatch custom event with serial number
+            window.dispatchEvent(new CustomEvent('connectToAnalyzer', {
+                detail: { serialNumber }
+            }));
+        }
+        
+        // Listen for connection status updates
+        window.addEventListener('connectionStatusUpdate', function(e: any) {
+            const { status, message } = e.detail;
+            showStatus(message, status);
+            
+            if (status !== 'connecting') {
+                connectBtn.disabled = false;
+            }
+        });
+    });
+</script>
