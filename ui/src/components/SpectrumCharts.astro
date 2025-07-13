@@ -59,15 +59,13 @@ import WaveIcon from '../assets/wave-icon.svg?raw';
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         <!-- Loading State -->
-        <div id="loadingState" class="bg-zinc-900 rounded-lg shadow-lg p-6 border border-zinc-800">
-            <div class="flex flex-col items-center justify-center h-96">
-                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-green-400 mb-4"></div>
-                <h2 class="text-xl font-semibold text-white mb-2">Connecting to RF Explorer</h2>
-                <p class="text-gray-300 text-center">
-                    <span id="loadingSerial" class="font-mono text-green-400"></span>
-                </p>
-                <div id="loadingStatus" class="text-gray-400 mt-2"></div>
-            </div>
+        <div id="loadingState" class="flex flex-col items-center justify-center h-96">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-green-400 mb-4"></div>
+            <h2 class="text-xl font-semibold text-white mb-2">Connecting to WaveWatch server...</h2>
+            <p class="text-gray-300 text-center min-h-[1.5rem]">
+                <span id="loadingSerial" class="font-mono text-green-400"></span>
+            </p>
+            <div id="loadingStatus" class="text-gray-400 mt-2 min-h-[1.5rem]"></div>
         </div>
 
         <!-- Dashboard Stats (initially hidden) -->
@@ -165,12 +163,66 @@ import WaveIcon from '../assets/wave-icon.svg?raw';
     let hasReceivedData = false;
     let traceCount = 0;
     let isDataStreamPaused = false;
+    let connectionTimeout: number | null = null;
+    let connectionEstablished = false;
 
     let chartsInitialized = false;
 
     document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
+        startConnectionTimeout();
     });
+
+    function startConnectionTimeout() {
+        // Set a 10-second timeout for connection
+        connectionTimeout = setTimeout(() => {
+            if (!connectionEstablished && !hasReceivedData) {
+                showConnectionError();
+            }
+        }, 10000);
+    }
+
+    function showConnectionError() {
+        const loadingState = document.getElementById('loadingState');
+        const statsContainer = document.getElementById('statsContainer');
+        const chartsContainer = document.getElementById('chartsContainer');
+        
+        // Ensure stats and charts remain hidden during error state
+        if (statsContainer) {
+            statsContainer.style.display = 'none';
+        }
+        if (chartsContainer) {
+            chartsContainer.style.display = 'none';
+        }
+        
+        if (loadingState) {
+            // Add fade-out transition
+            loadingState.style.opacity = '0';
+            loadingState.style.transition = 'opacity 0.3s ease-in-out';
+            
+            setTimeout(() => {
+                loadingState.innerHTML = `
+                    <div class="w-16 h-16 bg-red-500 bg-opacity-20 rounded-full flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-white mb-2">Connection Failed</h2>
+                    <p class="text-gray-300 text-center mb-6">
+                        Unable to connect to the WaveWatch server. Please check your connection and try again.
+                    </p>
+                    <button 
+                        onclick="window.location.reload()" 
+                        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors duration-200"
+                    >
+                        Retry Connection
+                    </button>
+                `;
+                // Fade back in
+                loadingState.style.opacity = '1';
+            }, 300);
+        }
+    }
 
     function initializeCharts() {
         console.log('Initializing combined chart...');
@@ -320,6 +372,19 @@ import WaveIcon from '../assets/wave-icon.svg?raw';
         playStopBtn?.addEventListener('click', function() {
             toggleDataStream();
         });
+
+        // Listen for SignalR connection status updates
+        window.addEventListener('connectionStatusUpdate', (e: any) => {
+            const { status, message } = e.detail;
+            if (status === 'error') {
+                // Clear timeout and show error immediately
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                    connectionTimeout = null;
+                }
+                showConnectionError();
+            }
+        });
     }
 
     function toggleDataStream() {
@@ -387,6 +452,13 @@ import WaveIcon from '../assets/wave-icon.svg?raw';
         const loadingStatus = document.getElementById('loadingStatus');
         
         if (isConnected) {
+            // Clear connection timeout since we're connected
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+                connectionTimeout = null;
+            }
+            connectionEstablished = true;
+            
             indicator!.innerHTML = `
                 <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                 <span class="text-xs text-gray-300">Live</span>
