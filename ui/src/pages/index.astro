@@ -1,27 +1,41 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Header from '../components/Header.astro';
 ---
 
-
 <Layout>
-	<script type="module">
-	const connection = new signalR.HubConnectionBuilder()
-		.withUrl('https://api.wavewatch.io/analyzerhub')
-		.build();
+	<div class="min-h-screen bg-black">
+		<Header />
 
-	connection.on('ReceiveTraceData', (id, trace) => {
-		console.log('Received trace:', trace);
-		// You can trigger state updates or DOM changes here
-	});
 
-	connection
-		.start()
-		.then(() => connection.invoke('ConnectToAnalyzer', '1'))
-		.catch(console.error);
-</script>
-	<Welcome />
+		<!-- Features Section -->
+		<div id="features" class="flex items-center justify-center min-h-[calc(100vh-88px)] px-4">
+			<div class="max-w-7xl mx-auto">
+				<div class="text-center">
+					<h3 class="text-4xl md:text-5xl font-bold text-white mb-6">
+						Remote RF Spectrum Analysis
+					</h3>
+					<p class="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
+						Access your equipment from anywhere, collaborate with your team, and never miss critical RF events. WaveWatch is open source and free to use.
+					</p>
+					<div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+						<a 
+							href="/demo"
+							class="inline-flex items-center px-6 py-3 border border-zinc-600 hover:border-zinc-500 text-gray-300 hover:text-white font-medium rounded-lg transition-colors duration-200"
+						>
+							Get Started
+						</a>
+						<a 
+							href="#"
+							class="inline-flex items-center px-6 py-3 border border-zinc-600 hover:border-zinc-500 text-gray-300 hover:text-white font-medium rounded-lg transition-colors duration-200"
+						>
+							Supported Devices
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+
 </Layout>
